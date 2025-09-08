@@ -4,6 +4,7 @@ import { Contact } from '../types';
 import { INDUSTRIES, POSITIONS, US_CITIES, COMPANY_SIZES, SEARCH_RADIUS_OPTIONS, REVENUE_RANGES } from '../data/searchData';
 import { LocationSearch } from '../components/LocationSearch';
 import { ApiService } from '../services/api';
+import { AIProspecting } from '../components/AIProspecting';
 
 
 export const Search: React.FC = () => {
@@ -17,6 +18,7 @@ export const Search: React.FC = () => {
   const [showFilters, setShowFilters] = useState(true);
   const [industrySearch, setIndustrySearch] = useState('');
   const [positionSearch, setPositionSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'search' | 'ai'>('search');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
@@ -117,10 +119,21 @@ export const Search: React.FC = () => {
                             selectedCompanySizes.length + selectedRevenue.length + 
                             (selectedLocation ? 1 : 0);
 
+  const handleAIProspectsFound = (aiProspects: any[]) => {
+    setContacts(aiProspects);
+    setPagination({
+      page: 1,
+      limit: 20,
+      total: aiProspects.length,
+      totalPages: 1,
+      hasMore: false
+    });
+  };
+
   return (
     <div className="flex h-full">
-      {/* Filters Sidebar */}
-      {showFilters && (
+      {/* Filters Sidebar - Only show for regular search */}
+      {showFilters && activeTab === 'search' && (
         <div className="w-80 bg-white border-r border-gray-200 overflow-y-auto">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
@@ -280,9 +293,33 @@ export const Search: React.FC = () => {
       <div className="flex-1 flex flex-col">
         {/* Search Header */}
         <div className="bg-white border-b border-gray-200 p-6">
+          {/* Tab Navigation */}
+          <div className="flex items-center space-x-6 mb-6">
+            <button
+              onClick={() => setActiveTab('search')}
+              className={`pb-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'search'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Database Search
+            </button>
+            <button
+              onClick={() => setActiveTab('ai')}
+              className={`pb-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'ai'
+                  ? 'border-purple-500 text-purple-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              🤖 AI Discovery
+            </button>
+          </div>
+
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-4">
-              {!showFilters && (
+              {!showFilters && activeTab === 'search' && (
                 <button
                   onClick={() => setShowFilters(true)}
                   className="btn btn-secondary"
@@ -296,7 +333,9 @@ export const Search: React.FC = () => {
                   )}
                 </button>
               )}
-              <h1 className="text-2xl font-bold text-gray-900">Find Prospects</h1>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {activeTab === 'search' ? 'Find Prospects' : 'AI Prospect Discovery'}
+              </h1>
             </div>
             <div className="flex items-center space-x-3">
               <button className="btn btn-secondary">
@@ -310,19 +349,21 @@ export const Search: React.FC = () => {
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="relative mb-4">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <SearchIcon className="h-5 w-5 text-gray-400" />
+          {/* Search Bar - Only show for regular search */}
+          {activeTab === 'search' && (
+            <div className="relative mb-4">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <SearchIcon className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search by name, company, title, or keywords..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input w-full pl-10 py-3 text-base"
+              />
             </div>
-            <input
-              type="text"
-              placeholder="Search by name, company, title, or keywords..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input w-full pl-10 py-3 text-base"
-            />
-          </div>
+          )}
 
           {/* Active Filters */}
           {totalActiveFilters > 0 && (
@@ -387,8 +428,14 @@ export const Search: React.FC = () => {
           )}
         </div>
 
-        {/* Results */}
+        {/* Content Area */}
         <div className="flex-1 p-6">
+          {activeTab === 'ai' ? (
+            /* AI Prospecting Interface */
+            <AIProspecting onProspectsFound={handleAIProspectsFound} />
+          ) : (
+            /* Regular Search Results */
+            <div>
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-gray-600">
               Showing {contacts.length} of {pagination.total} results
@@ -482,6 +529,8 @@ export const Search: React.FC = () => {
               >
                 {loading ? 'Loading...' : 'Load More Results'}
               </button>
+            </div>
+          )}
             </div>
           )}
         </div>

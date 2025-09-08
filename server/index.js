@@ -11,6 +11,7 @@ const contactRoutes = require('./routes/contacts');
 const listRoutes = require('./routes/lists');
 const searchRoutes = require('./routes/search');
 const dashboardRoutes = require('./routes/dashboard');
+const aiProspectingRoutes = require('./routes/aiProspecting');
 const { initializeDatabase } = require('./database/init');
 
 const app = express();
@@ -49,6 +50,7 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/lists', listRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/ai', aiProspectingRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
