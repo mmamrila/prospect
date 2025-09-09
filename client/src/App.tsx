@@ -3,6 +3,7 @@ import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { Search } from './pages/Search';
+import { AIProspecting } from './components/AIProspecting';
 
 const mockUser = {
   firstName: 'John',
@@ -25,6 +26,12 @@ function App() {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard />;
+      case 'ai-prospecting':
+        return (
+          <div className="p-6">
+            <AIProspecting />
+          </div>
+        );
       case 'search':
       case 'new-search':
         return <Search />;

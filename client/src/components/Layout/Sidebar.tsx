@@ -7,7 +7,8 @@ import {
   BarChart3, 
   Settings,
   Plus,
-  FolderOpen
+  FolderOpen,
+  Brain
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -17,6 +18,7 @@ interface SidebarProps {
 
 const navigationItems = [
   { id: 'dashboard', name: 'Dashboard', icon: Home },
+  { id: 'ai-prospecting', name: 'AI Prospecting', icon: Brain },
   { id: 'search', name: 'Find Prospects', icon: Search },
   { id: 'contacts', name: 'All Contacts', icon: Users },
   { id: 'lists', name: 'My Lists', icon: List },

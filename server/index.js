@@ -12,6 +12,9 @@ const listRoutes = require('./routes/lists');
 const searchRoutes = require('./routes/search');
 const dashboardRoutes = require('./routes/dashboard');
 const aiProspectingRoutes = require('./routes/aiProspecting');
+const testProspectingRoutes = require('./routes/testProspecting');
+const demoProspectingRoutes = require('./routes/demoProspecting');
+const debugRoutes = require('./routes/debug');
 const { initializeDatabase } = require('./database/init');
 
 const app = express();
@@ -51,6 +54,9 @@ app.use('/api/lists', listRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiProspectingRoutes);
+app.use('/api/test', testProspectingRoutes);
+app.use('/api/demo', demoProspectingRoutes);
+app.use('/api/debug', debugRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

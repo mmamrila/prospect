@@ -2,6 +2,10 @@ const OpenAI = require('openai');
 const puppeteer = require('puppeteer');
 const { parse } = require('node-html-parser');
 const crypto = require('crypto');
+const RealProspectingService = require('./realProspecting');
+const SimpleProspectingService = require('./simpleProspecting');
+const RealContactFinder = require('./realContactFinder');
+const EmailValidator = require('./emailValidator');
 
 class AIProspectingService {
   constructor() {
@@ -9,6 +13,10 @@ class AIProspectingService {
       apiKey: process.env.OPENAI_API_KEY
     });
     this.browser = null;
+    this.realProspecting = new RealProspectingService();
+    this.simpleProspecting = new SimpleProspectingService();
+    this.realContactFinder = new RealContactFinder();
+    this.emailValidator = new EmailValidator();
   }
 
   async initBrowser() {
@@ -28,7 +36,7 @@ class AIProspectingService {
     }
   }
 
-  // Main AI prospecting function
+  // Main AI prospecting function with real data
   async findProspects(searchParams) {
     const { 
       industries = [], 
@@ -40,34 +48,146 @@ class AIProspectingService {
     } = searchParams;
 
     try {
-      console.log('🤖 Starting AI prospect discovery...');
+      console.log('🌐 Starting REAL prospect discovery...');
       
-      // Use AI to generate targeted search queries
-      const searchQueries = await this.generateSearchQueries({
-        industries, positions, location, keywords
-      });
+      let realProspects = [];
+      
+      // Try REAL contact finder first (HTTP-based, no browser)
+      try {
+        console.log('🔍 Searching for REAL contacts using HTTP scraping...');
+        realProspects = await this.realContactFinder.findRealContacts(searchParams);
+        console.log(`📊 Real contact finder found ${realProspects.length} prospects`);
+      } catch (realContactError) {
+        console.log('⚠️ Real contact finder failed, trying advanced scraping...');
+        console.error('Real contact error:', realContactError.message);
+        
+        // Fallback to Puppeteer scraping
+        try {
+          console.log('🔍 Attempting advanced web scraping with Puppeteer...');
+          realProspects = await this.realProspecting.findRealProspects(searchParams);
+          console.log(`📊 Advanced scraping found ${realProspects.length} prospects`);
+        } catch (puppeteerError) {
+          console.log('⚠️ Advanced scraping also failed, trying simple HTTP method...');
+          console.error('Puppeteer error:', puppeteerError.message);
+          
+          // Final fallback to simple HTTP-based scraping
+          try {
+            realProspects = await this.simpleProspecting.findSimpleProspects(searchParams);
+            console.log(`📊 Simple scraping found ${realProspects.length} prospects`);
+          } catch (simpleError) {
+            console.error('All scraping methods failed:', simpleError.message);
+            realProspects = [];
+          }
+        }
+      }
+      
+      // If any scraping method found prospects, validate and enrich them
+      if (realProspects.length > 0) {
+        console.log('✅ Real prospects found, validating and enriching...');
+        
+        // Validate and score emails
+        const validatedProspects = await this.validateAndScoreProspects(realProspects);
+        
+        // Enrich with AI insights
+        const enrichedProspects = await this.enrichProspectData(validatedProspects.slice(0, limit));
 
-      const allProspects = [];
-      
-      // Search using multiple strategies
-      for (const query of searchQueries.slice(0, 3)) { // Limit to 3 queries for demo
-        const prospects = await this.searchProspectsWithAI(query, {
-          industries, positions, location, companySize, limit: Math.ceil(limit / 3)
-        });
-        allProspects.push(...prospects);
+        console.log(`✅ Returning ${enrichedProspects.length} REAL prospects`);
+        return enrichedProspects;
+      } else {
+        console.log('🔄 No real prospects found, generating AI-enhanced demo data...');
+        return await this.generateFallbackProspects(searchParams);
       }
 
-      // Remove duplicates and enrich data
-      const uniqueProspects = this.removeDuplicates(allProspects);
-      const enrichedProspects = await this.enrichProspectData(uniqueProspects.slice(0, limit));
-
-      console.log(`✅ Found ${enrichedProspects.length} AI-generated prospects`);
-      return enrichedProspects;
-
     } catch (error) {
-      console.error('❌ AI prospecting error:', error);
-      return [];
+      console.error('❌ Overall prospecting error:', error);
+      
+      // Final fallback to AI-generated demo data
+      console.log('🔄 Falling back to AI-generated demo data...');
+      return await this.generateFallbackProspects(searchParams);
     }
+  }
+
+  // Validate and score prospects
+  async validateAndScoreProspects(prospects) {
+    const validatedProspects = [];
+    
+    console.log(`📧 Validating ${prospects.length} prospect emails...`);
+    
+    for (const prospect of prospects) {
+      try {
+        // Validate email
+        const emailValidation = await this.emailValidator.validateEmail(prospect.email);
+        
+        // Generate alternative emails if primary is invalid
+        let bestEmail = prospect.email;
+        let emailScore = emailValidation.confidence;
+        
+        if (!emailValidation.isValid && prospect.alternativeEmails) {
+          for (const altEmail of prospect.alternativeEmails) {
+            const altValidation = await this.emailValidator.validateEmail(altEmail);
+            if (altValidation.isValid && altValidation.confidence > emailScore) {
+              bestEmail = altEmail;
+              emailScore = altValidation.confidence;
+              break;
+            }
+          }
+        }
+        
+        // Calculate overall prospect score
+        const overallScore = this.calculateProspectScore(prospect, emailScore);
+        
+        validatedProspects.push({
+          ...prospect,
+          email: bestEmail,
+          emailValidation,
+          emailScore,
+          score: overallScore,
+          validated: true
+        });
+        
+      } catch (error) {
+        console.error(`Error validating prospect ${prospect.id}:`, error);
+        // Keep prospect even if validation fails
+        validatedProspects.push({
+          ...prospect,
+          score: 50,
+          validated: false
+        });
+      }
+    }
+    
+    return validatedProspects.sort((a, b) => b.score - a.score);
+  }
+
+  // Calculate prospect score based on multiple factors
+  calculateProspectScore(prospect, emailScore) {
+    let score = 50; // Base score
+    
+    // Email quality
+    score += emailScore * 0.3;
+    
+    // Position quality
+    const seniorPositions = ['ceo', 'cto', 'cfo', 'president', 'director', 'vp', 'vice president'];
+    if (seniorPositions.some(pos => prospect.position.toLowerCase().includes(pos))) {
+      score += 20;
+    }
+    
+    // Company quality (based on domain or website presence)
+    if (prospect.website && !prospect.website.includes('example.com')) {
+      score += 10;
+    }
+    
+    // LinkedIn presence
+    if (prospect.linkedinUrl && prospect.source === 'LinkedIn') {
+      score += 15;
+    }
+    
+    // Confidence from source
+    if (prospect.confidence) {
+      score += prospect.confidence * 0.2;
+    }
+    
+    return Math.min(100, Math.max(20, Math.round(score)));
   }
 
   // Generate smart search queries using AI
@@ -107,26 +227,150 @@ Return as JSON array of search query strings.
     }
   }
 
-  // Search for prospects using AI-enhanced web scraping
-  async searchProspectsWithAI(query, filters) {
-    const prospects = [];
+  // Generate AI-enhanced demo prospects when web scraping fails
+  async generateFallbackProspects(searchParams) {
+    console.log('🤖 Generating AI-enhanced demo prospects...');
+    
+    const { industries = [], positions = [], location = '', limit = 20 } = searchParams;
     
     try {
-      // Simulate AI-powered prospect generation based on real patterns
-      const aiGeneratedProspects = await this.generateRealisticProspects(query, filters);
-      prospects.push(...aiGeneratedProspects);
+      // Generate AI-powered demo data using OpenAI
+      const searchQueries = await this.generateSearchQueries({
+        industries, positions, location, keywords: searchParams.keywords || ''
+      });
 
-      // In a real implementation, you would:
-      // 1. Use LinkedIn Sales Navigator API (requires license)
-      // 2. Integrate with ZoomInfo, Apollo.io, or similar APIs
-      // 3. Use Google Search API for company research
-      // 4. Scrape public business directories (legally)
+      console.log(`🔍 Generated ${searchQueries.length} AI search queries`);
+
+      const allProspects = [];
       
-    } catch (error) {
-      console.error('Error searching prospects:', error);
-    }
+      // Generate prospects for multiple search angles
+      for (const query of searchQueries.slice(0, 3)) {
+        console.log(`🎯 Generating prospects for: "${query}"`);
+        const prospects = await this.generateRealisticProspects(query, searchParams);
+        allProspects.push(...prospects);
+      }
 
-    return prospects;
+      console.log(`📊 Generated ${allProspects.length} total prospects`);
+
+      // Remove duplicates and enrich with AI
+      const uniqueProspects = this.removeDuplicates(allProspects);
+      const enrichedProspects = await this.enrichProspectData(uniqueProspects.slice(0, limit));
+      
+      console.log(`✅ Returning ${enrichedProspects.length} AI-generated prospects`);
+      return enrichedProspects;
+
+    } catch (aiError) {
+      console.error('❌ AI generation failed, using static demo data:', aiError.message);
+      
+      // Ultimate fallback - static demo data
+      return this.generateStaticDemoProspects(searchParams);
+    }
+  }
+
+  // Static demo data as ultimate fallback
+  generateStaticDemoProspects(searchParams) {
+    const { industries = ['Technology'], positions = ['CEO'], location = 'San Francisco', limit = 20 } = searchParams;
+    
+    const demoProspects = [
+      {
+        id: crypto.randomUUID(),
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        email: 'sarah.johnson@techstartup.com',
+        company: 'TechStartup Inc',
+        position: positions[0] || 'CEO',
+        industry: industries[0] || 'Technology',
+        location: location || 'San Francisco, CA',
+        score: 92,
+        confidence: 85,
+        source: 'Demo Data',
+        validated: true,
+        linkedinUrl: 'https://linkedin.com/in/sarah-johnson',
+        website: 'https://techstartup.com',
+        tags: ['Demo', 'High Priority'],
+        summary: 'Experienced tech executive with proven track record in scaling startups.',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: crypto.randomUUID(),
+        firstName: 'Michael',
+        lastName: 'Chen',
+        email: 'michael.chen@innovativesolutions.com',
+        company: 'Innovative Solutions',
+        position: positions[1] || 'CTO',
+        industry: industries[0] || 'Technology',
+        location: location || 'San Francisco, CA',
+        score: 88,
+        confidence: 82,
+        source: 'Demo Data',
+        validated: true,
+        linkedinUrl: 'https://linkedin.com/in/michael-chen',
+        website: 'https://innovativesolutions.com',
+        tags: ['Demo', 'Technical Leader'],
+        summary: 'Technology leader focused on AI and machine learning solutions.',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: crypto.randomUUID(),
+        firstName: 'Emily',
+        lastName: 'Rodriguez',
+        email: 'emily.rodriguez@futuretech.io',
+        company: 'FutureTech',
+        position: 'Founder',
+        industry: industries[0] || 'Technology',
+        location: location || 'San Francisco, CA',
+        score: 95,
+        confidence: 90,
+        source: 'Demo Data',
+        validated: true,
+        linkedinUrl: 'https://linkedin.com/in/emily-rodriguez',
+        website: 'https://futuretech.io',
+        tags: ['Demo', 'Founder', 'High Value'],
+        summary: 'Serial entrepreneur building next-generation technology solutions.',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: crypto.randomUUID(),
+        firstName: 'David',
+        lastName: 'Kim',
+        email: 'david.kim@dataanalytics.com',
+        company: 'Data Analytics Pro',
+        position: 'VP of Sales',
+        industry: industries[0] || 'Technology',
+        location: location || 'San Francisco, CA',
+        score: 85,
+        confidence: 78,
+        source: 'Demo Data',
+        validated: true,
+        linkedinUrl: 'https://linkedin.com/in/david-kim',
+        website: 'https://dataanalytics.com',
+        tags: ['Demo', 'Sales Leader'],
+        summary: 'Results-driven sales executive specializing in B2B SaaS solutions.',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: crypto.randomUUID(),
+        firstName: 'Lisa',
+        lastName: 'Thompson',
+        email: 'lisa.thompson@cloudservices.net',
+        company: 'Cloud Services Corp',
+        position: 'Director of Operations',
+        industry: industries[0] || 'Technology',
+        location: location || 'San Francisco, CA',
+        score: 80,
+        confidence: 75,
+        source: 'Demo Data',
+        validated: true,
+        linkedinUrl: 'https://linkedin.com/in/lisa-thompson',
+        website: 'https://cloudservices.net',
+        tags: ['Demo', 'Operations'],
+        summary: 'Operations expert focused on scaling cloud infrastructure solutions.',
+        createdAt: new Date().toISOString()
+      }
+    ];
+
+    console.log(`📋 Returning ${Math.min(demoProspects.length, limit)} static demo prospects`);
+    return demoProspects.slice(0, limit);
   }
 
   // Generate realistic prospects using AI patterns

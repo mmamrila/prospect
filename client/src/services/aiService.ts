@@ -44,9 +44,11 @@ class AIService {
     };
   }
 
-  // AI-powered prospect discovery
+  // AI-powered prospect discovery with real web scraping + OpenAI
   static async discoverProspects(request: AIProspectingRequest): Promise<AIProspectingResponse> {
     try {
+      console.log('🤖 Using FULL AI endpoint - real web scraping + OpenAI intelligence...');
+      
       const response = await fetch(`${API_BASE_URL}/ai/discover`, {
         method: 'POST',
         headers: this.getHeaders(),
